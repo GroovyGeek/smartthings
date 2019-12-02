@@ -1,5 +1,5 @@
 /**
- *  SmartThings SmartApp: Yamaha Network Receiver
+ *  SmartThings SmartApp: Yamaha Network Receiver HTR-4065
  *
  *  Author: redloro@gmail.com, updated and simplified by groovy.geek@gmail.com
  *
@@ -15,156 +15,156 @@
  *  https://github.com/PSeitz/yamaha-nodejs
  *  http://<RECEIVER_IP_ADDRESS>/YamahaRemoteControl/desc.xml
  *  https://community.smartthings.com/t/release-yamaha-network-receiver-basic-integration/54525
+ *
+ * Icons at http://scripts.3dgo.net/smartthings/icons/
+ *
  */
 import groovy.util.XmlSlurper
 
 definition(
-  name: "Yamaha Receiver",
-  namespace: "GroovyGeek",
-  author: "GroovyGeek",
-  description: "Yamaha SmartApp",
-  category: "My Apps",
-  iconUrl: "https://raw.githubusercontent.com/redloro/smartthings/master/images/yamaha-receiver.png",
-  iconX2Url: "https://raw.githubusercontent.com/redloro/smartthings/master/images/yamaha-receiver.png",
-  iconX3Url: "https://raw.githubusercontent.com/redloro/smartthings/master/images/yamaha-receiver.png"
-)
+	name: "Yamaha HTR-4065 Receiver",
+	namespace: "GroovyGeek",
+	author: "GroovyGeek",
+	description: "Yamaha HTR-4065 SmartApp",
+	category: "My Apps",
+	iconUrl: "https://raw.githubusercontent.com/redloro/smartthings/master/images/yamaha-receiver.png",
+	iconX2Url: "https://raw.githubusercontent.com/redloro/smartthings/master/images/yamaha-receiver.png",
+	iconX3Url: "https://raw.githubusercontent.com/redloro/smartthings/master/images/yamaha-receiver.png"
+	)
 
 preferences {
-  section("SmartThings Hub") {
-    input "hostHub", "hub", title: "Select Hub", multiple: false, required: true
-  }
-  section("Yamaha Receiver") {
-    input name: "receiverName", type: "text", title: "Name", required: true, defaultValue: "Yamaha"
-    input name: "receiverIp", type: "text", title: "IP", required: true, defaultValue: "192.168.1.1"
-    input name: "receiverZones", type: "enum", title: "Zones", required: true, multiple: true, options: ["Main_Zone"]
-    input name: "receiverChannels", type: "enum", title: "Channels", required: true, multiple: true, options: ["TV","Roku","Chromecast","Tuner"]
-     // corresponding ports are["HDMI1","HDMI2","HDMI3","TUNER"]
-  }
+	section("SmartThings Hub") {
+		input "hostHub", "hub", title: "Select Hub", multiple: false, required: true
+	}
+	section("Yamaha Receiver") {
+		// receiverName is user-editable
+		input name: "receiverName", type: "text", title: "Thing Name", required: true, defaultValue: "Yamaha"
+		// receiverIp is the IP address of the receiver on the local network
+		input name: "receiverIp", type: "text", title: "IP", required: true, defaultValue: "192.168.1.1"
+		// receiverChannels are the human-friendly names of the channels, receiverPorts are the actual ports that correspond to them
+		input name: "receiverChannels", type: "enum", title: "Channels", required: true, multiple: true, options: ["TV","Roku","Chromecast","DVD","Tuner"]
+		input name: "receiverPorts", type: "enum", title: "Channels", required: true, multiple: true, options: ["HDMI1","HDMI2","HDMI3","HDMI4","TUNER"]
+	}
 }
 
 def installed() {
-  subscribeToEvents()
+	subscribeToEvents()
 }
 
 def subscribeToEvents() {
-  subscribe(location, null, lanResponseHandler, [filterEvents:false])
+	subscribe(location, null, lanResponseHandler, [filterEvents:false])
 }
 
 def updated() {
-  addChildDevices()
+	addChildDevices()
 }
 
 def uninstalled() {
-  removeChildDevices()
+	removeChildDevices()
 }
 
 def lanResponseHandler(evt) {
-  def map = stringToMap(evt.stringValue)
+	def map = stringToMap(evt.stringValue)
 
-  //verify that this message is from Yamaha Receiver IP
-  if (!map.ip || map.ip != convertIPtoHex(settings.receiverIp)) {
-    return
-  }
+	//verify that this message is from Yamaha Receiver IP
+	if (!map.ip || map.ip != convertIPtoHex(settings.receiverIp)) {
+		return
+	}
 
-  def headers = getHttpHeaders(map.headers);
-  def body = getHttpBody(map.body);
-  //log.trace "Headers: ${headers}"
-  //log.trace "Body: ${body}"
+	def headers = getHttpHeaders(map.headers);
+	def body = getHttpBody(map.body);
+	//log.trace "Headers: ${headers}"
+	//log.trace "Body: ${body}"
 
-  updateZoneDevices(body.children()[0])
+	updateZoneDevices(body.children()[0])
 }
 
 private updateZoneDevices(evt) {
-  //log.debug "updateZoneDevices: ${evt.toString()}"
-  if (evt.name() == "System") {
-    //log.debug "Update all zones"
-    childDevices*.zone(evt)
-    return
-  }
+	//log.debug "updateZoneDevices: ${evt.toString()}"
+	if (evt.name() == "System") {
+		//log.debug "Update all zones"
+		childDevices*.zone(evt)
+		return
+	}
 
-  def zonedevice = getChildDevice(getDeviceId(evt.name()))
-  if (zonedevice) {
-    zonedevice.zone(evt)
-  }
-
-  //check for Zone_B
-  zonedevice = getChildDevice(getDeviceId("Zone_B"))
-  if (zonedevice && evt.name() == "Main_Zone") {
-    zonedevice.zone(evt)
-  }
+	def zonedevice = getChildDevice(getZoneId(evt.name()))
+	if (zonedevice) {
+		zonedevice.zone(evt)
+	}
 }
 
 private addChildDevices() {
-  // add yamaha device
-  settings.receiverZones.each {
-    def deviceId = getDeviceId(it)
+	// add yamaha device
+	def zone = "Main_Zone"
+    def deviceId = getZoneId(zone)
     if (!getChildDevice(deviceId)) {
-      addChildDevice("GroovyGeek", "Yamaha Zone", deviceId, hostHub.id, ["name": it, label: "${settings.receiverName}: ${it}", completedSetup: true])
-      log.debug "Added Yamaha zone: ${deviceId}"
+		addChildDevice("GroovyGeek", "Yamaha Zone", deviceId, hostHub.id, ["name": zone, label: "${settings.receiverName}", completedSetup: true])
+		//log.debug "Added Yamaha zone: ${deviceId}"
     }
-    // add channel selectors foreach zone
-    def zone = it
+    // add channel selectors
     settings.receiverChannels.each {
-      def sourceId = getSourceId(zone, it)
-      if (!getChildDevice(sourceId)) {
-          addChildDevice("GroovyGeek", "Yamaha Source", sourceId, hostHub.id, ["name": it, label: "${settings.receiverName}: ${zone}: ${it}", completedSetup: true])
-          //log.debug "Added Yamaha Channel: ${sourceId}"
+	def sourceId = getSourceId(zone, it)
+	if (!getChildDevice(sourceId)) {
+		addChildDevice("GroovyGeek", "Yamaha Source", sourceId, hostHub.id, ["name": it, label: "${settings.receiverName}: ${it}", completedSetup: true])
+		//log.debug "Added Yamaha Channel: ${sourceId}"
       }
     }
-  }
-
   childDevices*.refresh()
 }
 
 private removeChildDevices() {
-  getAllChildDevices().each { deleteChildDevice(it.deviceNetworkId) }
+	getAllChildDevices().each { deleteChildDevice(it.deviceNetworkId) }
 }
 
 private sendCommand(body) {
-  //log.debug "Yamaha Network Receiver send command: ${body}"
+	//log.debug "Yamaha Network Receiver send command: ${body}"
 
-  def hubAction = new physicalgraph.device.HubAction(
-      headers: [HOST: getReceiverAddress()],
-      method: "POST",
-      path: "/YamahaRemoteControl/ctrl",
-      body: body
-  )
-  sendHubCommand(hubAction)
+	def hubAction = new physicalgraph.device.HubAction(
+		headers: [HOST: getReceiverAddress()],
+		method: "POST",
+		path: "/YamahaRemoteControl/ctrl",
+		body: body
+	)
+	sendHubCommand(hubAction)
 }
 
 private getHttpHeaders(headers) {
-  def obj = [:]
-  new String(headers.decodeBase64()).split("\r\n").each {param ->
-    def nameAndValue = param.split(":")
-    obj[nameAndValue[0]] = (nameAndValue.length == 1) ? "" : nameAndValue[1].trim()
-  }
-  return obj
+	def obj = [:]
+	new String(headers.decodeBase64()).split("\r\n").each {param ->
+		def nameAndValue = param.split(":")
+		obj[nameAndValue[0]] = (nameAndValue.length == 1) ? "" : nameAndValue[1].trim()
+	}
+	return obj
 }
 
 private getHttpBody(body) {
-  def obj = null;
-  if (body) {
-    obj = new XmlSlurper().parseText(new String(body.decodeBase64()))
-  }
-  return obj
+	def obj = null;
+	if (body) {
+		obj = new XmlSlurper().parseText(new String(body.decodeBase64()))
+	}
+	return obj
 }
 
-private getDeviceId(zone) {
-  return "yamaha|${settings.receiverIp}|${zone}"
+private getZoneId(zone) {
+	// IP and zone embedded in zoneID
+	return "yamaha|${settings.receiverIp}|${zone}"
 }
 
 private getSourceId(zone,source) {
-  return "yamaha|${settings.receiverIp}|${zone}|${source}"
+	// IP, zone, and port embedded in zoneID
+	def id = receiverChannels.indexOf(source)
+	def port = receiverPorts.get(id)
+	return "yamaha|${settings.receiverIp}|${zone}|${port}"
 }
 
 private getReceiverAddress() {
-  return settings.receiverIp + ":80"
+	return settings.receiverIp + ":80"
 }
 
 private String convertIPtoHex(ipAddress) {
-  return ipAddress.tokenize( '.' ).collect {  String.format( '%02x', it.toInteger() ) }.join().toUpperCase()
+	return ipAddress.tokenize( '.' ).collect {  String.format( '%02x', it.toInteger() ) }.join().toUpperCase()
 }
 
 private String convertPortToHex(port) {
-  return port.toString().format( '%04x', port.toInteger() ).toUpperCase()
+	return port.toString().format( '%04x', port.toInteger() ).toUpperCase()
 }

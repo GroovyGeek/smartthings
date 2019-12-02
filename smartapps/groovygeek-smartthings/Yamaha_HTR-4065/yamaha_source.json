@@ -15,6 +15,9 @@
  *  https://github.com/PSeitz/yamaha-nodejs
  *  http://<RECEIVER_IP_ADDRESS>/YamahaRemoteControl/desc.xml
  *  Inspired by https://community.smartthings.com/t/release-yamaha-network-receiver-basic-integration/54525
+ *
+ * Icons at http://scripts.3dgo.net/smartthings/icons/
+ *
  */
 
 metadata {
@@ -26,6 +29,7 @@ metadata {
     }
 
 	// UI tile definitions
+	// The source selection is implemented as momentary buttons which can be triggered by GA or IFTTT
 	tiles {
 		standardTile("switch", "device.switch", width: 2, height: 2, canChangeIcon: true) {
 			state "off", label: 'Push', action: "momentary.push", backgroundColor: "#ffffff", nextState: "on"
@@ -57,18 +61,17 @@ def off() {
 }
 
 private getZone() {
-  def zoneName =  new String(device.deviceNetworkId).tokenize('|')[2]
-  return zoneName
+	// Extract zone Id from deviceId
+	def zoneName =  new String(device.deviceNetworkId).tokenize('|')[2]
+	return zoneName
 }
 
 private getSource() {
-  def channels = ['TV', 'Roku', 'Chromecast', 'Tuner']
-  def sourceName = new String(device.deviceNetworkId).tokenize('|')[3]
-  def id = channels.indexOf(sourceName)
-  def channelName = ['HDMI1', 'HDMI2', 'HDMI3', 'TUNER'].get(id)
-  return channelName
+	def channels = ['TV', 'Roku', 'Chromecast', 'Tuner']
+	def sourceName = new String(device.deviceNetworkId).tokenize('|')[3]
+	return sourceName
 }
 
 private sendCommand(body) {
-  parent.sendCommand(body)
+	parent.sendCommand(body)
 }

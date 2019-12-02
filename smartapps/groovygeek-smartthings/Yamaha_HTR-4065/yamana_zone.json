@@ -1,5 +1,5 @@
 /**
- *  SmartThings Device Handler: Yamaha Network Receiver
+ *  SmartThings Device Handler: Yamaha Network Receiver HTR-4065
  *
  *  Author: groovy.geek@gmail.com
  *
@@ -15,7 +15,10 @@
  *  https://github.com/PSeitz/yamaha-nodejs
  *  http://<RECEIVER_IP_ADDRESS>/YamahaRemoteControl/desc.xml
  *  Inspired by https://community.smartthings.com/t/release-yamaha-network-receiver-basic-integration/54525
- */
+ *
+ * Icons at http://scripts.3dgo.net/smartthings/icons/
+ *
+*/
  
  metadata {
   		definition (name: "Yamaha Zone", namespace: "GroovyGeek", author: "GroovyGeek") {
@@ -29,6 +32,7 @@
 
 
 	// UI tile definitions
+	// Setting up volume as a dimmer so we can later trick  Google Assistant and Alexa into controlling the volume 
 	tiles {
 		standardTile("button", "device.switch", width: 2, height: 2, canChangeIcon: true) {
 			state "off", label: 'Off', action: "switch.on", icon: "st.Electronics.electronics16", backgroundColor: "#ffffff", nextState: "on"
@@ -54,11 +58,12 @@
 def on() {
 	sendCommand("<YAMAHA_AV cmd=\"PUT\"><${getZone()}><Power_Control><Power>On</Power></Power_Control></${getZone()}></YAMAHA_AV>")
 	sendEvent(name: "switch", value: "on")
-    //log.info "Speaker On"
+    //log.info "Receiver On"
 }
 
 def off() {
-    //log.info "Speaker Off"
+    //log.info "Receiver Off"
+	// Net_Standby_On must be set to prevent the receiver into going into a hard shutdown
     sendCommand("<YAMAHA_AV cmd=\"PUT\"><${getZone()}><Net_Standby><Net_Standby_On>On</Net_Standby_On></Net_Standby></${getZone()}></YAMAHA_AV>")
     sendCommand("<YAMAHA_AV cmd=\"PUT\"><${getZone()}><Power_Control><Power>Standby</Power></Power_Control></${getZone()}></YAMAHA_AV>")
 	sendEvent(name: "switch", value: "off")
@@ -67,9 +72,12 @@ def off() {
 def setLevel(val){
     if (val < 0) val = 0
     else if( val > 100) val = 100
-	sendCommand("<YAMAHA_AV cmd=\"PUT\"><${getZone()}><Volume><Lvl><Val>${((val-80) * 10).intValue()}</Val><Exp>1</Exp><Unit>dB</Unit></Lvl></Volume></${getZone()}></YAMAHA_AV>") 
+	
+	// Since we are hacking this as a dimmer its settings in GA are 0-100.  Need to convert this to dB for the Yamaha
+	// 0% is approximately -80dB and 100% is +16db, approximating this as just a shift by -80
+	sendCommand("<YAMAHA_AV cmd=\"PUT\"><${getZone()}><Volume><Lvl><Val>${(val - 80)* 10.intValue()}</Val><Exp>1</Exp><Unit>dB</Unit></Lvl></Volume></${getZone()}></YAMAHA_AV>") 
  	sendEvent(name: "level", value: val)
-   //log.info "setLevel $val"
+   //log.info "level $val"
 }
 
 /**************************************************************************/
@@ -78,10 +86,10 @@ def poll() {
 }
 
 def parse(String description) {
-	return
 }
 
 def zone(evt) {
+	// Not exactly sure what this does, leaving in place
 	// Zone On/Off
     if (evt.Basic_Status.Power_Control.Power.text()) {
     	sendEvent(name: "switch", value: (evt.Basic_Status.Power_Control.Power.text() == "On") ? "on" : "off")
@@ -100,5 +108,6 @@ private sendCommand(body) {
 }
 
 private getZone() {
+	// Extract zone Id from deviceId
   	return new String(device.deviceNetworkId).tokenize('|')[2]
 }
