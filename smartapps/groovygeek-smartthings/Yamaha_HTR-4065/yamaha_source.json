@@ -1,0 +1,74 @@
+/**
+ *  SmartThings Device Handler: Yamaha Network Receiver
+ *
+ *  Author: groovy.geek@gmail.com
+ *
+ *  Licensed under the Apache License, Version 2.0 (the "License"); you may not use this file except
+ *  in compliance with the License. You may obtain a copy of the License at:
+ *
+ *      http://www.apache.org/licenses/LICENSE-2.0
+ *
+ *  Unless required by applicable law or agreed to in writing, software distributed under the License is distributed
+ *  on an "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied. See the License
+ *  for the specific language governing permissions and limitations under the License.
+ *
+ *  https://github.com/PSeitz/yamaha-nodejs
+ *  http://<RECEIVER_IP_ADDRESS>/YamahaRemoteControl/desc.xml
+ *  Inspired by https://community.smartthings.com/t/release-yamaha-network-receiver-basic-integration/54525
+ */
+
+metadata {
+	definition (name: "Yamaha Source", namespace: "GroovyGeek", author: "GroovyGeek") {
+		capability "Actuator"
+		capability "Switch"
+		capability "Momentary"
+		capability "Sensor"
+    }
+
+	// UI tile definitions
+	tiles {
+		standardTile("switch", "device.switch", width: 2, height: 2, canChangeIcon: true) {
+			state "off", label: 'Push', action: "momentary.push", backgroundColor: "#ffffff", nextState: "on"
+			state "on", label: 'Push', action: "momentary.push", backgroundColor: "#53a7c0"
+		}
+		main "switch"
+		details "switch"
+	}
+}
+
+//*************************************************************
+
+def parse(String description) {
+}
+
+def push() {
+ 	sendEvent(name: "switch", value: "on", isStateChange: true, displayed: false)
+	sendEvent(name: "switch", value: "off", isStateChange: true, displayed: false)
+	sendEvent(name: "momentary", value: "pushed", isStateChange: true)
+	sendCommand("<YAMAHA_AV cmd=\"PUT\"><${getZone()}><Input><Input_Sel>${getSource()}</Input_Sel></Input></${getZone()}></YAMAHA_AV>")
+}
+
+def on() {
+	push()
+}
+
+def off() {
+	push()
+}
+
+private getZone() {
+  def zoneName =  new String(device.deviceNetworkId).tokenize('|')[2]
+  return zoneName
+}
+
+private getSource() {
+  def channels = ['TV', 'Roku', 'Chromecast', 'Tuner']
+  def sourceName = new String(device.deviceNetworkId).tokenize('|')[3]
+  def id = channels.indexOf(sourceName)
+  def channelName = ['HDMI1', 'HDMI2', 'HDMI3', 'TUNER'].get(id)
+  return channelName
+}
+
+private sendCommand(body) {
+  parent.sendCommand(body)
+}

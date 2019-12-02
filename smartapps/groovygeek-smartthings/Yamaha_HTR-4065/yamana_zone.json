@@ -1,0 +1,104 @@
+/**
+ *  SmartThings Device Handler: Yamaha Network Receiver
+ *
+ *  Author: groovy.geek@gmail.com
+ *
+ *  Licensed under the Apache License, Version 2.0 (the "License"); you may not use this file except
+ *  in compliance with the License. You may obtain a copy of the License at:
+ *
+ *      http://www.apache.org/licenses/LICENSE-2.0
+ *
+ *  Unless required by applicable law or agreed to in writing, software distributed under the License is distributed
+ *  on an "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied. See the License
+ *  for the specific language governing permissions and limitations under the License.
+ *
+ *  https://github.com/PSeitz/yamaha-nodejs
+ *  http://<RECEIVER_IP_ADDRESS>/YamahaRemoteControl/desc.xml
+ *  Inspired by https://community.smartthings.com/t/release-yamaha-network-receiver-basic-integration/54525
+ */
+ 
+ metadata {
+  		definition (name: "Yamaha Zone", namespace: "GroovyGeek", author: "GroovyGeek") {
+        capability "Switch"
+        capability "Refresh"
+        capability "Switch Level"
+    	capability "Polling"
+		
+        command "zone"
+    }
+
+
+	// UI tile definitions
+	tiles {
+		standardTile("button", "device.switch", width: 2, height: 2, canChangeIcon: true) {
+			state "off", label: 'Off', action: "switch.on", icon: "st.Electronics.electronics16", backgroundColor: "#ffffff", nextState: "on"
+			state "on", label: 'On', action: "switch.off", icon: "st.Electronics.electronics16", backgroundColor: "#79b821", nextState: "off"
+		}
+		standardTile("refresh", "device.switch", inactiveLabel: false, decoration: "flat") {
+			state "default", label:'', action:"refresh.refresh", icon:"st.secondary.refresh"
+		}        
+        controlTile("levelSliderControl", "device.level", "slider", height: 1, width: 2, inactiveLabel: false, backgroundColor:"#ffe71e") {
+            state "level", action:"switch level.setLevel"
+        }
+        valueTile("lValue", "device.level", inactiveLabel: true, height:1, width:1, decoration: "flat") {
+            state "levelValue", label:'${currentValue}%', unit:"", backgroundColor: "#53a7c0"
+        }
+
+		main(["button"])
+		details(["button", "refresh","levelSliderControl","lValue"])
+	}
+}
+
+
+/**************************************************************************/
+def on() {
+	sendCommand("<YAMAHA_AV cmd=\"PUT\"><${getZone()}><Power_Control><Power>On</Power></Power_Control></${getZone()}></YAMAHA_AV>")
+	sendEvent(name: "switch", value: "on")
+    //log.info "Speaker On"
+}
+
+def off() {
+    //log.info "Speaker Off"
+    sendCommand("<YAMAHA_AV cmd=\"PUT\"><${getZone()}><Net_Standby><Net_Standby_On>On</Net_Standby_On></Net_Standby></${getZone()}></YAMAHA_AV>")
+    sendCommand("<YAMAHA_AV cmd=\"PUT\"><${getZone()}><Power_Control><Power>Standby</Power></Power_Control></${getZone()}></YAMAHA_AV>")
+	sendEvent(name: "switch", value: "off")
+}
+
+def setLevel(val){
+    if (val < 0) val = 0
+    else if( val > 100) val = 100
+	sendCommand("<YAMAHA_AV cmd=\"PUT\"><${getZone()}><Volume><Lvl><Val>${((val-80) * 10).intValue()}</Val><Exp>1</Exp><Unit>dB</Unit></Lvl></Volume></${getZone()}></YAMAHA_AV>") 
+ 	sendEvent(name: "level", value: val)
+   //log.info "setLevel $val"
+}
+
+/**************************************************************************/
+def poll() {
+  refresh()
+}
+
+def parse(String description) {
+	return
+}
+
+def zone(evt) {
+	// Zone On/Off
+    if (evt.Basic_Status.Power_Control.Power.text()) {
+    	sendEvent(name: "switch", value: (evt.Basic_Status.Power_Control.Power.text() == "On") ? "on" : "off")
+   }
+	
+	// Set volume level
+    if (evt.Basic_Status.Volume.Lvl.Val.text()) {
+    	def int volLevel = evt.Basic_Status.Volume.Lvl.Val.toInteger() ?: 0
+    	//sendEvent(name: "level", value: (volLevel / 10).intValue())
+    	sendEvent(name: "level", value: volLevel)
+    }
+}
+
+private sendCommand(body) {
+  	parent.sendCommand(body)
+}
+
+private getZone() {
+  	return new String(device.deviceNetworkId).tokenize('|')[2]
+}
